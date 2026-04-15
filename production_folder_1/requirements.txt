@@ -1,0 +1,9 @@
+python-telegram-bot==21.5
+langchain-openai
+langchain-core
+langgraph
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+python-dotenv
+httpx
