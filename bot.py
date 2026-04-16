@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import os
+import re
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -25,7 +26,7 @@ user_histories: dict[int, list] = {}
 
 GREETING = (
     "👋 Hello! I'm your AI Calendar Manager.\n\n"
-    "Try: _'What do I have this week?'_ or _'Schedule a meeting tomorrow at 2pm'_\n\n"
+    "Try: 'What do I have this week?' or 'Schedule a meeting tomorrow at 2pm'\n\n"
     "Send /clear to reset conversation history."
 )
 
@@ -33,7 +34,7 @@ GREETING = (
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_histories[user_id] = []  # reset on /start
-    await update.message.reply_text(GREETING, parse_mode="Markdown")
+    await update.message.reply_text(GREETING, parse_mode="HTML")
 
 
 async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,6 +43,15 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🗑️ Conversation history cleared!")
 
 
+def markdown_to_html(text: str) -> str:
+    """Convert any leftover **bold** or *italic* markdown to HTML tags."""
+    # Convert **bold** → <b>bold</b>
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    # Convert *italic* or _italic_ → <i>italic</i>
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+    text = re.sub(r'_(.+?)_', r'<i>\1</i>', text)
+    return text
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_text = update.message.text.strip()
@@ -49,11 +59,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
-    # Initialise history for new users
     if user_id not in user_histories:
         user_histories[user_id] = []
 
-    # Show typing indicator
     await context.bot.send_chat_action(
         chat_id=update.effective_chat.id, action="typing"
     )
@@ -63,9 +71,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_histories[user_id] = updated_history
 
         if reply:
-            # Telegram has a 4096 char limit — split if needed
             for chunk in split_message(reply):
-                await update.message.reply_text(chunk)
+                await update.message.reply_text(markdown_to_html(chunk), parse_mode="HTML")
         else:
             await update.message.reply_text("⚙️ Done! Let me know if you need anything else.")
 
@@ -73,6 +80,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Agent error for user {user_id}: {e}")
         await update.message.reply_text(
             "❌ Something went wrong. Please try again or send /clear to reset."
+            
         )
 
 
